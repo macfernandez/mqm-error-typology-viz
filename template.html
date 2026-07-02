@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<!--
+  MQM-Core Error Typology — interactive explorer.
+
+  Data source: MQM Error Typology (MQM-Full spreadsheet, "MQMFull Master" / MQM-Core),
+  (c) The MQM Council, https://themqm.org  (obtained from https://themqm.org/downloads/).
+  Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0):
+  https://creativecommons.org/licenses/by/4.0/
+
+  Changes from the source: the typology was reshaped into a JSON tree for visualization,
+  two typo'd parent references were corrected (locale-convention -> locale-conventions;
+  locale-specific-punctuation -> "locale-specific punctuation"), and a Core/Extension flag
+  was derived from the PID prefix (MQMC = Core, MQMN = Extension).
+
+  This is an independent adaptation and is not endorsed by, nor affiliated with, The MQM Council.
+
+  Generated from template.html by build.py (mqm-error-typology-viz).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MQM-Core Error Typology</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  :root{--bg:#0f1117;--panel:#1a1d27;--ink:#e6e8ee;--muted:#9aa3b2;}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column;height:100vh}
+  header{padding:12px 18px;border-bottom:1px solid #262a38;display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex:0 0 auto}
+  header h1{font-size:16px;margin:0 6px 0 0;font-weight:600;white-space:nowrap}
+  .legend{display:flex;gap:12px;align-items:center;font-size:12px;color:var(--muted)}
+  .legend .sw{display:inline-flex;align-items:center;gap:6px}
+  .legend .dot{width:12px;height:12px;border-radius:50%}
+  .legend .sep{width:1px;height:15px;background:#333a4d}
+  .legend .dot.hollow{background:transparent!important;box-shadow:inset 0 0 0 2px #9aa3b2}
+  .hint{color:var(--muted);font-size:12px}
+  .spacer{flex:1}
+  .seg{display:inline-flex;border:1px solid #333a4d;border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-radius:0;border-right:1px solid #333a4d;background:#1a1d27}
+  .seg button:last-child{border-right:0}
+  .seg button.active{background:#2f3a52;color:#fff}
+  button{background:#222736;color:var(--ink);border:1px solid #333a4d;border-radius:7px;padding:5px 10px;cursor:pointer;font-size:12px}
+  button:hover{background:#2b3140}
+  .count{font-size:12px;color:#9aa3b2}
+  .count b{color:#69db7c}
+  #main{flex:1 1 auto;display:flex;min-height:0}
+  #wrap{position:relative;flex:1 1 auto;overflow:auto}
+  /* modern thin scrollbars */
+  *{scrollbar-width:thin;scrollbar-color:#3a4156 transparent}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#363c4d;border-radius:10px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#4b5268;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-corner{background:transparent}
+  svg{display:block;width:100%}
+  .link{fill:none;stroke:#3a4156;stroke-width:1.3px}
+  .node circle{cursor:pointer}
+  .node circle.halo{fill:none;stroke:#cfd4df;stroke-opacity:.32;stroke-width:1.5px;pointer-events:none}
+  .node text{fill:var(--ink);font-size:12px;cursor:pointer;paint-order:stroke;stroke:#0f1117;stroke-width:3px;stroke-linejoin:round}
+  .cb rect{fill:#161922;stroke:#5b657a;stroke-width:1.5px;cursor:pointer}
+  .cb:hover rect{stroke:#9aa3b2}
+  .cb .tick{fill:none;stroke:#69db7c;stroke-width:2px;visibility:hidden;pointer-events:none}
+  .cb.on rect{stroke:#69db7c;fill:#15281c}
+  .cb.on .tick{visibility:visible}
+  #tip{position:fixed;max-width:380px;background:var(--panel);border:1px solid #2c3142;border-radius:10px;
+       padding:12px 14px;pointer-events:none;opacity:0;transition:opacity .12s;box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:20}
+  #tip h3{margin:0 0 6px;font-size:14px}
+  #tip .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  #tip .lvl{display:inline-block;font-size:11px;padding:1px 7px;border-radius:20px;color:#0f1117;font-weight:600}
+  #tip .pid{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;color:#aab2c2;letter-spacing:.02em}
+  #tip .tag{font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+  #tip .tag.core{background:#1f3a2a;color:#69db7c;border:1px solid #2e5a40}
+  #tip .tag.ext{background:#2a2030;color:#c79bd6;border:1px solid #4a3a55}
+  #tip p{margin:6px 0;color:#cfd4df}
+  #tip .lab{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-top:8px}
+  #tip .ex{white-space:pre-wrap;font-size:12px;color:#b9c0cd}
+  #panel{flex:0 0 320px;border-left:1px solid #262a38;background:#13161f;display:flex;flex-direction:column;min-height:0}
+  #panel.hidden{display:none}
+  #panel .phead{padding:12px 14px;border-bottom:1px solid #262a38;display:flex;align-items:center;gap:8px}
+  #panel .phead h2{font-size:13px;margin:0;font-weight:600}
+  #panel .plist{flex:1 1 auto;overflow:auto;padding:8px 10px}
+  #panel .grp{margin-bottom:10px}
+  #panel .grp .gh{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#7e8aa0;margin:6px 4px 4px;display:flex;justify-content:space-between}
+  #panel .item{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px}
+  #panel .item:hover{background:#1b2030}
+  #panel .item .nm{flex:1;font-size:12.5px}
+  #panel .item .pid{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;color:#8b93a4}
+  #panel .item .x{cursor:pointer;color:#7e8aa0;font-size:14px;line-height:1}
+  #panel .item .x:hover{color:#ff6b6b}
+  #panel .dotmini{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+  #panel .empty{color:#6b7488;font-size:12.5px;padding:14px 8px;text-align:center;line-height:1.5}
+  #panel .pfoot{border-top:1px solid #262a38;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px}
+  #panel .pfoot .row{display:flex;gap:6px;width:100%}
+  #panel .pfoot button{flex:1}
+  #panel .pfoot .clear{flex:1;background:#2a1c1f;border-color:#5a2e34}
+  #panel .pfoot .clear:hover{background:#3a2329}
+  .toast{position:fixed;bottom:38px;left:50%;transform:translateX(-50%);background:#1f6f3d;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;z-index:30}
+  .toast.show{opacity:1}
+  #credit{flex:0 0 auto;border-top:1px solid #262a38;padding:7px 18px;font-size:11.5px;line-height:1.45;color:#7e8aa0;background:#0f1117}
+  #credit a{color:#9aa3b2;text-decoration:none;border-bottom:1px dotted #4a5168}
+  #credit a:hover{color:#cfd4df}
+</style>
+</head>
+<body>
+<header>
+  <h1>MQM-Core Error Typology</h1>
+  <div class="legend" id="legend"></div>
+  <div class="spacer"></div>
+  <span class="hint">Show:</span>
+  <div class="seg" id="filter">
+    <button data-m="all" class="active">All</button>
+    <button data-m="core">Core only</button>
+    <button data-m="selected">Selected</button>
+  </div>
+  <button id="expand">Expand all</button>
+  <button id="collapse">Collapse</button>
+  <span class="count" id="count"><b>0</b> selected</span>
+  <button id="togglePanel">Hide panel</button>
+</header>
+<div id="main">
+  <div id="wrap"><div id="tip"></div></div>
+  <aside id="panel">
+    <div class="phead"><h2>Selected for guideline</h2></div>
+    <div class="plist" id="plist"></div>
+    <div class="pfoot">
+      <div class="row">
+        <button id="copyCsv">Copy CSV</button>
+        <button id="copyJson">Copy JSON</button>
+      </div>
+      <div class="row">
+        <button id="dlCsv">Download CSV</button>
+        <button id="dlJson">Download JSON</button>
+      </div>
+      <div class="row">
+        <button class="clear" id="clearSel">Clear all</button>
+      </div>
+    </div>
+  </aside>
+</div>
+<div class="toast" id="toast"></div>
+<footer id="credit">
+  Error-typology data © <a href="https://themqm.org" target="_blank" rel="noopener">The MQM Council</a>,
+  from the <a href="https://themqm.org/downloads/" target="_blank" rel="noopener">MQM-Full spreadsheet</a> (MQM-Core Error Typology),
+  licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
+  Adapted for this explorer: hierarchy reshaped, two parent-reference typos corrected, and the Core/Extension flag derived from the PID prefix.
+  This is an independent adaptation and is <strong>not endorsed by, nor affiliated with, The MQM Council</strong>.
+</footer>
+<script>
+const DATA = __DATA__;
+const LEVEL_COLORS = {0:"#ff6b6b",1:"#ffa94d",2:"#ffd43b",3:"#69db7c"};
+const LEVEL_NAMES = {0:"Dimension (L0)",1:"Level 1",2:"Level 2",3:"Level 3"};
+
+const isCoreData = n => String((n&&n.pid)||"").startsWith("MQMC");
+const isCore = d => isCoreData(d.data);
+const hasHidden = d => !!(d._children && !d.children);
+const colorData = n => LEVEL_COLORS[n.level] ?? "#868e96";
+const color = d => colorData(d.data);
+
+// ---- master lookup + selection state ----
+const mById = new Map(DATA.map(d=>[d.id,d]));
+function rootOf(id){ let n=mById.get(id); while(n && n.parent && mById.get(n.parent)) n=mById.get(n.parent); return n; }
+const LSKEY="mqm_selected_v1";
+let selected=new Set();
+try{ selected=new Set(JSON.parse(localStorage.getItem(LSKEY)||"[]")); }catch(e){}
+function save(){ try{ localStorage.setItem(LSKEY, JSON.stringify([...selected])); }catch(e){} }
+
+// ---- legend ----
+const legend=d3.select("#legend");
+Object.keys(LEVEL_COLORS).forEach(k=>{
+  const s=legend.append("span").attr("class","sw");
+  s.append("span").attr("class","dot").style("background",LEVEL_COLORS[k]);
+  s.append("span").text(LEVEL_NAMES[k]);
+});
+legend.append("span").attr("class","sep");
+const cs=legend.append("span").attr("class","sw");
+cs.append("span").attr("class","dot").style("background","#9aa3b2");
+cs.append("span").text("Core (filled)");
+const es=legend.append("span").attr("class","sw");
+es.append("span").attr("class","dot hollow");
+es.append("span").text("Extension (outline)");
+
+// ---- build (filterable) hierarchy ----
+const margin={top:24,right:300,bottom:24,left:170};
+const svg=d3.select("#wrap").append("svg");
+const g=svg.append("g").attr("transform",`translate(${margin.left},${margin.top})`);
+const gLink=g.append("g"), gNode=g.append("g");
+const tip=d3.select("#tip");
+const dx=22, dy=215;
+const tree=d3.tree().nodeSize([dx,dy]);
+const diagonal=d3.linkHorizontal().x(d=>d.y).y(d=>d.x);
+
+let filterMode="all";
+let root;
+
+function buildMaster(){
+  const byId=new Map(DATA.map(d=>[d.id,{...d,children:[]}]));
+  const roots=[];
+  byId.forEach(n=>{ if(n.parent && byId.has(n.parent)) byId.get(n.parent).children.push(n); else roots.push(n); });
+  return {id:"__root__",name:"MQM-Core",level:-1,desc:"Top-level quality dimensions",children:roots};
+}
+const MASTER=buildMaster();
+
+function keep(n){
+  if(filterMode==="core") return isCoreData(n);
+  if(filterMode==="selected") return selected.has(n.id);
+  return true;
+}
+function prune(n){
+  const kids=(n.children||[]).map(prune).filter(Boolean);
+  if(n.id==="__root__") return {...n,children:kids};
+  if(keep(n) || kids.length) return {...n,children:kids};
+  return null;
+}
+
+function rebuild(){
+  const data=prune(MASTER);
+  root=d3.hierarchy(data);
+  root.x0=0; root.y0=0;
+  root.descendants().forEach((d,i)=>{
+    d._id=i; d._children=d.children;
+    if(filterMode!=="selected" && d.depth>=1) d.children=null; // collapse to dimensions
+  });
+  svg.call(zoomCenter);
+  update(root);
+}
+
+function zoomCenter(){ /* placeholder kept for parity */ }
+
+function update(source){
+  const nodes=root.descendants().reverse();
+  const links=root.links();
+  tree(root);
+  let lo=Infinity,hi=-Infinity;
+  root.each(d=>{ if(d.x<lo)lo=d.x; if(d.x>hi)hi=d.x; });
+  const width=Math.max(...nodes.map(d=>d.y))+margin.left+margin.right;
+  const contentH=hi-lo+margin.top+margin.bottom;
+  const vh=Math.max(svg.node().parentNode.clientHeight, window.innerHeight-60);
+  const H=Math.max(contentH, vh);
+  const yOff=lo-margin.top-Math.max(0,(H-contentH)/2);
+  svg.attr("viewBox",[0,yOff,width,H]).attr("height",H).attr("preserveAspectRatio","xMinYMid meet");
+
+  const node=gNode.selectAll("g.node").data(nodes,d=>d._id);
+  const nodeEnter=node.enter().append("g").attr("class","node")
+    .attr("transform",`translate(${source.y0},${source.x0})`)
+    .on("click",(e,d)=>{ if(d.depth===0) return; d.children=d.children?null:d._children; update(d); })
+    .on("mousemove",(e,d)=>showTip(e,d))
+    .on("mouseleave",()=>tip.style("opacity",0));
+  nodeEnter.append("circle").attr("class","halo");
+  nodeEnter.append("circle").attr("class","main");
+  // checkbox
+  const cb=nodeEnter.append("g").attr("class","cb").attr("transform","translate(-14,0)")
+    .on("click",(e,d)=>{ e.stopPropagation(); toggleSel(d); });
+  cb.append("rect").attr("x",-5.5).attr("y",-5.5).attr("width",11).attr("height",11).attr("rx",2.5);
+  cb.append("path").attr("class","tick").attr("d","M-3,0 L-1,2.6 L3.6,-3");
+  nodeEnter.append("text").attr("dy","0.31em")
+    .attr("x",d=>d._children?-26:11)
+    .attr("text-anchor",d=>d._children?"end":"start")
+    .text(d=>d.data.name).style("display",d=>d.depth===0?"none":null);
+
+  const nodeAll=node.merge(nodeEnter);
+  nodeAll.attr("transform",d=>`translate(${d.y},${d.x})`);
+  nodeAll.attr("class",d=>"node"+(hasHidden(d)?" collapsed":""));
+  nodeAll.select("circle.halo").attr("r",d=>hasHidden(d)?10:0);
+  nodeAll.select("circle.main")
+    .attr("r",5.5)
+    .attr("fill",d=>isCore(d)?color(d):"#0f1117")
+    .attr("stroke",d=>color(d))
+    .attr("stroke-width",d=>isCore(d)?1.4:2.1);
+  nodeAll.select("g.cb")
+    .style("display",d=>d.depth===0?"none":null)
+    .attr("class",d=>"cb"+(selected.has(d.data.id)?" on":""));
+  nodeAll.select("text")
+    .attr("x",d=>d._children?-26:11)
+    .attr("text-anchor",d=>d._children?"end":"start");
+
+  node.exit().remove();
+
+  const link=gLink.selectAll("path").data(links,d=>d.target._id);
+  const linkEnter=link.enter().append("path").attr("class","link");
+  link.merge(linkEnter).attr("d",diagonal);
+  link.exit().remove();
+
+  root.eachBefore(d=>{d.x0=d.x;d.y0=d.y;});
+}
+
+function esc(s){return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function showTip(e,d){
+  if(d.depth===0){tip.style("opacity",0);return;}
+  const c=color(d), lv=d.data.level, pid=d.data.pid||"", core=isCore(d);
+  let html=`<div class="meta"><span class="lvl" style="background:${c}">${LEVEL_NAMES[lv]||"Level "+lv}</span>`;
+  if(pid) html+=`<span class="pid">${esc(pid)}</span>`;
+  html+=`<span class="tag ${core?"core":"ext"}">${core?"Core":"Extension"}</span></div>`;
+  html+=`<h3>${esc(d.data.name)}</h3>`;
+  if(d.data.desc) html+=`<p>${esc(d.data.desc)}</p>`;
+  if(d.data.ex){html+=`<div class="lab">Examples</div><div class="ex">${esc(d.data.ex)}</div>`;}
+  tip.html(html).style("opacity",1);
+  const pad=16, tw=tip.node().offsetWidth, th=tip.node().offsetHeight;
+  let x=e.clientX+pad, y=e.clientY+pad;
+  if(x+tw>window.innerWidth) x=e.clientX-tw-pad;
+  if(y+th>window.innerHeight) y=e.clientY-th-pad;
+  tip.style("left",Math.max(8,x)+"px").style("top",Math.max(8,y)+"px");
+}
+
+// ---- selection ----
+function toggleSel(d){
+  const id=d.data.id;
+  if(selected.has(id)) selected.delete(id); else selected.add(id);
+  save(); renderPanel();
+  if(filterMode==="selected") rebuild(); else update(root);
+}
+function removeSel(id){
+  selected.delete(id); save(); renderPanel();
+  if(filterMode==="selected") rebuild(); else update(root);
+}
+function renderPanel(){
+  d3.select("#count").html(`<b>${selected.size}</b> selected`);
+  const plist=d3.select("#plist"); plist.html("");
+  const ids=[...selected].filter(id=>mById.has(id));
+  if(!ids.length){ plist.append("div").attr("class","empty").text("No types selected yet. Tick the box next to a node to add it."); return; }
+  const groups=new Map();
+  ids.forEach(id=>{ const r=rootOf(id)||{name:"(other)"}; if(!groups.has(r.name)) groups.set(r.name,[]); groups.get(r.name).push(mById.get(id)); });
+  // order groups by dimension order in DATA
+  const dimOrder=DATA.filter(d=>!d.parent).map(d=>d.name);
+  const ordered=[...groups.keys()].sort((a,b)=>dimOrder.indexOf(a)-dimOrder.indexOf(b));
+  ordered.forEach(gn=>{
+    const items=groups.get(gn).sort((a,b)=>(a.pid||"").localeCompare(b.pid||""));
+    const grp=plist.append("div").attr("class","grp");
+    grp.append("div").attr("class","gh").html(`<span>${esc(gn)}</span><span>${items.length}</span>`);
+    items.forEach(n=>{
+      const it=grp.append("div").attr("class","item");
+      it.append("span").attr("class","dotmini").style("background",isCoreData(n)?colorData(n):"transparent")
+        .style("box-shadow",isCoreData(n)?"none":`inset 0 0 0 2px ${colorData(n)}`);
+      it.append("span").attr("class","nm").text(n.name);
+      it.append("span").attr("class","pid").text(n.pid||"");
+      it.append("span").attr("class","x").text("×").on("click",()=>removeSel(n.id));
+    });
+  });
+}
+
+// ---- export ----
+function selectedNodes(){ return DATA.filter(d=>selected.has(d.id)); }
+function csvCell(s){ s=String(s==null?"":s); return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; }
+function toCSV(){
+  const cols=["pid","id","name","level","core","parent","description","examples"];
+  const head=cols.join(",");
+  const rows=selectedNodes().map(n=>[n.pid,n.id,n.name,n.level,isCoreData(n)?"core":"extension",n.parent,n.desc,n.ex].map(csvCell).join(","));
+  return [head,...rows].join("\n");
+}
+function toJSON(){
+  return JSON.stringify(selectedNodes().map(n=>({pid:n.pid,id:n.id,name:n.name,level:n.level,core:isCoreData(n),parent:n.parent,description:n.desc,examples:n.ex})),null,2);
+}
+function toast(msg){ const t=d3.select("#toast"); t.text(msg).classed("show",true); setTimeout(()=>t.classed("show",false),1400); }
+function copyText(txt,label){ navigator.clipboard.writeText(txt).then(()=>toast(label+" copied")).catch(()=>toast("Copy failed")); }
+function download(txt,fname,mime){ const b=new Blob([txt],{type:mime}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=fname; a.click(); URL.revokeObjectURL(u); }
+
+document.getElementById("copyCsv").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); copyText(toCSV(),"CSV"); };
+document.getElementById("copyJson").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); copyText(toJSON(),"JSON"); };
+document.getElementById("dlCsv").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); download(toCSV(),"mqm_selection.csv","text/csv"); };
+document.getElementById("dlJson").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); download(toJSON(),"mqm_selection.json","application/json"); };
+document.getElementById("clearSel").onclick=()=>{ if(!selected.size)return; if(!confirm("Clear all "+selected.size+" selected types?"))return; selected.clear(); save(); renderPanel(); if(filterMode==="selected") rebuild(); else update(root); };
+
+// ---- controls ----
+document.querySelectorAll("#filter button").forEach(b=>{
+  b.onclick=()=>{ document.querySelectorAll("#filter button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); filterMode=b.dataset.m; rebuild(); };
+});
+document.getElementById("expand").onclick=()=>{ root.each(d=>{ if(d._children) d.children=d._children; }); update(root); };
+document.getElementById("collapse").onclick=()=>{ root.each(d=>{ if(d.depth>=1 && d._children) d.children=null; }); update(root); };
+document.getElementById("togglePanel").onclick=()=>{ const p=document.getElementById("panel"); const hid=p.classList.toggle("hidden"); document.getElementById("togglePanel").textContent=hid?"Show panel":"Hide panel"; setTimeout(()=>update(root),0); };
+
+renderPanel();
+rebuild();
+</script>
+</body>
+</html>
