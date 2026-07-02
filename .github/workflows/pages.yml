@@ -11,10 +11,10 @@ permissions:
   pages: write
   id-token: write
 
-# One concurrent deployment; don't cancel an in-progress run.
+# One concurrent deployment; cancel an in-progress run.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
         run: uv run build.py
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
