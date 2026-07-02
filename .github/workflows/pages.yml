@@ -3,6 +3,10 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [main]
+    paths:
+      - **.py
+      - **.html
+      - .github/workflows/*.yml
   workflow_dispatch:
 
 # Allow the workflow to publish to GitHub Pages.
