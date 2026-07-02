@@ -1,5 +1,12 @@
 # MQM-Core Error Typology — interactive explorer
 
+[![Deploy to GitHub Pages](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/pages.yml/badge.svg)](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/pages.yml)
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://macfernandez.github.io/mqm-error-typology-viz/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue)](pyproject.toml)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://docs.astral.sh/uv/)
+[![No runtime dependencies](https://img.shields.io/badge/dependencies-none-success)](pyproject.toml)
+[![Content license: CC BY 4.0](https://img.shields.io/badge/content%20license-CC%20BY%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
 A self-contained, interactive HTML view of the [MQM-Core](https://themqm.org/) translation-quality
 error typology. Browse the typology as a collapsible tree, inspect each error type, and tick the
 ones you want to keep (for example, to build an annotation guideline) — then export your selection
