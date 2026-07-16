@@ -89,11 +89,17 @@
   #panel .item .x:hover{color:#ff6b6b}
   #panel .dotmini{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
   #panel .empty{color:#6b7488;font-size:12.5px;padding:14px 8px;text-align:center;line-height:1.5}
-  #panel .pfoot{border-top:1px solid #262a38;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px}
+  #panel .pfoot{position:relative;border-top:1px solid #262a38;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px}
   #panel .pfoot .row{display:flex;gap:6px;width:100%}
   #panel .pfoot button{flex:1}
   #panel .pfoot .clear{flex:1;background:#2a1c1f;border-color:#5a2e34}
   #panel .pfoot .clear:hover{background:#3a2329}
+  #panel .pfoot #exportBtn.open{background:#2f3a52;color:#fff}
+  .exmenu{position:absolute;left:12px;right:12px;bottom:calc(100% - 2px);background:#1a1d27;border:1px solid #2c3142;border-radius:10px;padding:8px;box-shadow:0 -8px 30px rgba(0,0,0,.5);z-index:25;display:flex;flex-direction:column;gap:5px}
+  .exmenu[hidden]{display:none}
+  .exmenu .exgrp{display:flex;align-items:center;gap:6px}
+  .exmenu .exlbl{flex:0 0 96px;font-size:12px;color:#9aa3b2}
+  .exmenu .exgrp button{flex:1}
   .toast{position:fixed;bottom:38px;left:50%;transform:translateX(-50%);background:#1f6f3d;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;z-index:30}
   .toast.show{opacity:1}
   #credit{flex:0 0 auto;border-top:1px solid #262a38;padding:7px 18px;font-size:11.5px;line-height:1.45;color:#7e8aa0;background:#0f1117}
@@ -123,15 +129,21 @@
     <div class="phead"><h2>Selected for guideline</h2></div>
     <div class="plist" id="plist"></div>
     <div class="pfoot">
-      <div class="row">
-        <button id="copyCsv">Copy CSV</button>
-        <button id="copyJson">Copy JSON</button>
+      <div class="exmenu" id="exportMenu" hidden>
+        <div class="exgrp"><span class="exlbl">JSON</span>
+          <button data-fmt="json" data-act="copy">Copy</button>
+          <button data-fmt="json" data-act="download">Download</button></div>
+        <div class="exgrp"><span class="exlbl">CSV</span>
+          <button data-fmt="csv" data-act="copy">Copy</button>
+          <button data-fmt="csv" data-act="download">Download</button></div>
+        <div class="exgrp"><span class="exlbl">LaTeX (.tex)</span>
+          <button data-fmt="tex" data-act="copy">Copy</button>
+          <button data-fmt="tex" data-act="download">Download</button></div>
+        <div class="exgrp"><span class="exlbl">Word (.docx)</span>
+          <button data-fmt="docx" data-act="download">Download</button></div>
       </div>
       <div class="row">
-        <button id="dlCsv">Download CSV</button>
-        <button id="dlJson">Download JSON</button>
-      </div>
-      <div class="row">
+        <button id="exportBtn" aria-haspopup="true" aria-expanded="false">Export ▾</button>
         <button class="clear" id="clearSel">Clear all</button>
       </div>
     </div>
@@ -353,10 +365,175 @@ function toast(msg){ const t=d3.select("#toast"); t.text(msg).classed("show",tru
 function copyText(txt,label){ navigator.clipboard.writeText(txt).then(()=>toast(label+" copied")).catch(()=>toast("Copy failed")); }
 function download(txt,fname,mime){ const b=new Blob([txt],{type:mime}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=fname; a.click(); URL.revokeObjectURL(u); }
 
-document.getElementById("copyCsv").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); copyText(toCSV(),"CSV"); };
-document.getElementById("copyJson").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); copyText(toJSON(),"JSON"); };
-document.getElementById("dlCsv").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); download(toCSV(),"mqm_selection.csv","text/csv"); };
-document.getElementById("dlJson").onclick=()=>{ if(!selected.size)return toast("Nothing selected"); download(toJSON(),"mqm_selection.json","application/json"); };
+function downloadBytes(bytes,fname,mime){ const b=new Blob([bytes],{type:mime}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=fname; a.click(); URL.revokeObjectURL(u); }
+
+// ---- nested guideline structure (LaTeX / DOCX) ----
+// Only selected nodes, grouped by top-level dimension, each nested under its nearest
+// SELECTED ancestor (else at the dimension's top level). DATA order = stable ordering.
+function guidelineSections(){
+  const nearestSelAnc=n=>{ let p=n.parent?mById.get(n.parent):null; while(p){ if(selected.has(p.id)) return p; p=p.parent?mById.get(p.parent):null; } return null; };
+  const wrap=new Map();
+  DATA.forEach(d=>{ if(selected.has(d.id)) wrap.set(d.id,{node:d,children:[]}); });
+  const sections=new Map(); // dimId -> {name,roots}
+  DATA.forEach(d=>{
+    if(!selected.has(d.id)) return;
+    const w=wrap.get(d.id), anc=nearestSelAnc(d);
+    if(anc){ wrap.get(anc.id).children.push(w); }
+    else { const dim=rootOf(d.id)||d; if(!sections.has(dim.id)) sections.set(dim.id,{name:dim.name,roots:[]}); sections.get(dim.id).roots.push(w); }
+  });
+  const ordered=[];
+  DATA.filter(d=>!d.parent).forEach(dim=>{ if(sections.has(dim.id)) ordered.push(sections.get(dim.id)); });
+  return ordered;
+}
+
+// ---- LaTeX ----
+function texEsc(s){
+  const map={'\\':'\\textbackslash{}','{':'\\{','}':'\\}','$':'\\$','&':'\\&','#':'\\#','^':'\\textasciicircum{}','_':'\\_','%':'\\%','~':'\\textasciitilde{}'};
+  return String(s==null?"":s).replace(/[\\{}$&#^_%~]/g,ch=>map[ch]);
+}
+function toLaTeX(){
+  const L=[];
+  L.push("\\documentclass{article}");
+  L.push("\\renewcommand{\\labelenumii}{\\theenumi.\\theenumii}");
+  L.push("\\renewcommand{\\labelenumiii}{\\theenumi.\\theenumii.\\theenumiii}");
+  L.push("\\renewcommand{\\labelenumiv}{\\theenumi.\\theenumii.\\theenumiii.\\theenumiv}");
+  L.push("\\begin{document}");
+  L.push("");
+  function renderList(items){
+    if(!items.length) return;
+    L.push("\\begin{enumerate}");
+    items.forEach(w=>{
+      const n=w.node, pid=(n.pid||"").trim();
+      let head="\\item ";
+      if(pid && n.name) head+="\\textbf{"+texEsc(pid)+"} --- "+texEsc(n.name);
+      else if(pid) head+="\\textbf{"+texEsc(pid)+"}";
+      else head+=texEsc(n.name);
+      L.push(head);
+      if(n.desc){ L.push(""); L.push(texEsc(n.desc)); }
+      if(n.ex){ L.push(""); L.push("\\textit{Examples:} "+texEsc(n.ex)); }
+      if(w.children.length){ L.push(""); renderList(w.children); }
+    });
+    L.push("\\end{enumerate}");
+  }
+  guidelineSections().forEach(sec=>{
+    L.push("\\section*{"+texEsc(sec.name)+"}");
+    renderList(sec.roots);
+    L.push("");
+  });
+  L.push("\\end{document}");
+  L.push("");
+  return L.join("\n");
+}
+
+// ---- DOCX (no external libraries) ----
+function xmlEsc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function docxRun(text,opts){
+  opts=opts||{}; const rp=[];
+  if(opts.bold) rp.push("<w:b/>");
+  if(opts.italic) rp.push("<w:i/>");
+  if(opts.sz){ rp.push('<w:sz w:val="'+opts.sz+'"/><w:szCs w:val="'+opts.sz+'"/>'); }
+  const rpr=rp.length?"<w:rPr>"+rp.join("")+"</w:rPr>":"";
+  const t=xmlEsc(text).replace(/\r\n?|\n/g,'</w:t><w:br/><w:t xml:space="preserve">');
+  return "<w:r>"+rpr+'<w:t xml:space="preserve">'+t+"</w:t></w:r>";
+}
+function docxPara(runs,indent){
+  const ind=indent?'<w:ind w:left="'+indent+'"/>':"";
+  return "<w:p><w:pPr>"+ind+'<w:spacing w:after="80"/></w:pPr>'+runs+"</w:p>";
+}
+function toDocxXml(){
+  const body=[];
+  function walk(items,prefix,depth){
+    items.forEach((w,i)=>{
+      const num=prefix?prefix+"."+(i+1):String(i+1);
+      const n=w.node, pid=(n.pid||"").trim();
+      const base=360*(depth+1);
+      let head=docxRun(num+(pid?"  "+pid:""),{bold:true,sz:24});
+      if(n.name) head+=docxRun("  "+n.name,{sz:24});
+      body.push(docxPara(head,base));
+      if(n.desc) body.push(docxPara(docxRun(n.desc,{sz:22}),base+240));
+      if(n.ex) body.push(docxPara(docxRun("Examples: ",{bold:true,sz:22})+docxRun(n.ex,{sz:22}),base+240));
+      walk(w.children,num,depth+1);
+    });
+  }
+  guidelineSections().forEach(sec=>{
+    body.push(docxPara(docxRun(sec.name,{bold:true,sz:32}),0));
+    walk(sec.roots,"",0);
+  });
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    +'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+    +body.join("")
+    +'<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
+    +'</w:body></w:document>';
+}
+// minimal store-only (no compression) ZIP writer with CRC32
+function crc32(bytes){
+  let c=~0>>>0;
+  for(let i=0;i<bytes.length;i++){ c^=bytes[i]; for(let k=0;k<8;k++){ c=(c>>>1)^(0xEDB88320&-(c&1)); } }
+  return (~c)>>>0;
+}
+function makeZip(files){
+  const enc=new TextEncoder(), parts=[]; let offset=0;
+  const push=b=>{ parts.push(b); offset+=b.length; };
+  const u16=n=>new Uint8Array([n&255,(n>>8)&255]);
+  const u32=n=>{ n>>>=0; return new Uint8Array([n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255]); };
+  const central=[];
+  files.forEach(f=>{
+    const name=enc.encode(f.name), data=(f.data instanceof Uint8Array)?f.data:enc.encode(f.data);
+    const crc=crc32(data), local=offset;
+    push(u32(0x04034b50)); push(u16(20)); push(u16(0)); push(u16(0));
+    push(u16(0)); push(u16(0)); push(u32(crc)); push(u32(data.length)); push(u32(data.length));
+    push(u16(name.length)); push(u16(0)); push(name); push(data);
+    central.push({name,crc,size:data.length,local});
+  });
+  const cdStart=offset;
+  central.forEach(c=>{
+    push(u32(0x02014b50)); push(u16(20)); push(u16(20)); push(u16(0)); push(u16(0));
+    push(u16(0)); push(u16(0)); push(u32(c.crc)); push(u32(c.size)); push(u32(c.size));
+    push(u16(c.name.length)); push(u16(0)); push(u16(0)); push(u16(0)); push(u16(0));
+    push(u32(0)); push(u32(c.local)); push(c.name);
+  });
+  const cdSize=offset-cdStart;
+  push(u32(0x06054b50)); push(u16(0)); push(u16(0)); push(u16(central.length)); push(u16(central.length));
+  push(u32(cdSize)); push(u32(cdStart)); push(u16(0));
+  let total=0; parts.forEach(p=>total+=p.length);
+  const out=new Uint8Array(total); let p=0; parts.forEach(b=>{ out.set(b,p); p+=b.length; });
+  return out;
+}
+function toDocx(){
+  const types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    +'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    +'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+    +'<Default Extension="xml" ContentType="application/xml"/>'
+    +'<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+    +'</Types>';
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+    +'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    +'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+    +'</Relationships>';
+  return makeZip([
+    {name:"[Content_Types].xml",data:types},
+    {name:"_rels/.rels",data:rels},
+    {name:"word/document.xml",data:toDocxXml()},
+  ]);
+}
+
+// ---- export menu ----
+const exportBtn=document.getElementById("exportBtn");
+const exportMenu=document.getElementById("exportMenu");
+function closeExport(){ exportMenu.hidden=true; exportBtn.classList.remove("open"); exportBtn.setAttribute("aria-expanded","false"); }
+function toggleExport(){ if(exportMenu.hidden){ exportMenu.hidden=false; exportBtn.classList.add("open"); exportBtn.setAttribute("aria-expanded","true"); } else closeExport(); }
+exportBtn.onclick=e=>{ e.stopPropagation(); toggleExport(); };
+document.addEventListener("click",e=>{ if(!exportMenu.hidden && !exportMenu.contains(e.target) && e.target!==exportBtn) closeExport(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !exportMenu.hidden) closeExport(); });
+function doExport(fmt,act){
+  if(!selected.size){ toast("Nothing selected"); closeExport(); return; }
+  if(fmt==="json"){ act==="copy"?copyText(toJSON(),"JSON"):download(toJSON(),"mqm_selection.json","application/json"); }
+  else if(fmt==="csv"){ act==="copy"?copyText(toCSV(),"CSV"):download(toCSV(),"mqm_selection.csv","text/csv"); }
+  else if(fmt==="tex"){ const t=toLaTeX(); act==="copy"?copyText(t,"LaTeX"):download(t,"mqm_guideline.tex","application/x-tex"); }
+  else if(fmt==="docx"){ downloadBytes(toDocx(),"mqm_guideline.docx","application/vnd.openxmlformats-officedocument.wordprocessingml.document"); toast("Word downloaded"); }
+  closeExport();
+}
+exportMenu.querySelectorAll("button").forEach(b=>{ b.onclick=()=>doExport(b.dataset.fmt,b.dataset.act); });
 document.getElementById("clearSel").onclick=()=>{ if(!selected.size)return; if(!confirm("Clear all "+selected.size+" selected types?"))return; selected.clear(); save(); renderPanel(); if(filterMode==="selected") rebuild(); else update(root); };
 
 // ---- controls ----
