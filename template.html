@@ -374,15 +374,23 @@ function guidelineSections(){
   const nearestSelAnc=n=>{ let p=n.parent?mById.get(n.parent):null; while(p){ if(selected.has(p.id)) return p; p=p.parent?mById.get(p.parent):null; } return null; };
   const wrap=new Map();
   DATA.forEach(d=>{ if(selected.has(d.id)) wrap.set(d.id,{node:d,children:[]}); });
-  const sections=new Map(); // dimId -> {name,roots}
+  const sections=new Map(); // dimId -> {name,intro,roots}
   DATA.forEach(d=>{
     if(!selected.has(d.id)) return;
     const w=wrap.get(d.id), anc=nearestSelAnc(d);
     if(anc){ wrap.get(anc.id).children.push(w); }
-    else { const dim=rootOf(d.id)||d; if(!sections.has(dim.id)) sections.set(dim.id,{name:dim.name,roots:[]}); sections.get(dim.id).roots.push(w); }
+    else { const dim=rootOf(d.id)||d; if(!sections.has(dim.id)) sections.set(dim.id,{name:dim.name,intro:null,roots:[]}); sections.get(dim.id).roots.push(w); }
   });
   const ordered=[];
-  DATA.filter(d=>!d.parent).forEach(dim=>{ if(sections.has(dim.id)) ordered.push(sections.get(dim.id)); });
+  DATA.filter(d=>!d.parent).forEach(dim=>{
+    if(!sections.has(dim.id)) return;
+    const sec=sections.get(dim.id);
+    // When the dimension node itself is selected it already serves as the section
+    // header, so lift its definition/examples into an intro and promote its children
+    // to the top level — the dimension name isn't repeated as a numbered entry.
+    if(sec.roots.length===1 && sec.roots[0].node.id===dim.id){ sec.intro=sec.roots[0].node; sec.roots=sec.roots[0].children; }
+    ordered.push(sec);
+  });
   return ordered;
 }
 
@@ -405,9 +413,9 @@ function toLaTeX(){
     items.forEach(w=>{
       const n=w.node, pid=(n.pid||"").trim();
       let head="\\item ";
-      if(pid && n.name) head+="\\textbf{"+texEsc(pid)+"} --- "+texEsc(n.name);
-      else if(pid) head+="\\textbf{"+texEsc(pid)+"}";
-      else head+=texEsc(n.name);
+      if(n.name && pid) head+="\\textbf{"+texEsc(n.name)+"} --- "+texEsc(pid);
+      else if(n.name) head+="\\textbf{"+texEsc(n.name)+"}";
+      else head+=texEsc(pid);
       L.push(head);
       if(n.desc){ L.push(""); L.push(texEsc(n.desc)); }
       if(n.ex){ L.push(""); L.push("\\textit{Examples:} "+texEsc(n.ex)); }
@@ -417,6 +425,13 @@ function toLaTeX(){
   }
   guidelineSections().forEach(sec=>{
     L.push("\\section*{"+texEsc(sec.name)+"}");
+    if(sec.intro){
+      const n=sec.intro, pid=(n.pid||"").trim();
+      if(pid){ L.push(""); L.push("\\textit{"+texEsc(pid)+"}"); }
+      if(n.desc){ L.push(""); L.push(texEsc(n.desc)); }
+      if(n.ex){ L.push(""); L.push("\\textit{Examples:} "+texEsc(n.ex)); }
+    }
+    L.push("");
     renderList(sec.roots);
     L.push("");
   });
@@ -447,8 +462,8 @@ function toDocxXml(){
       const num=prefix?prefix+"."+(i+1):String(i+1);
       const n=w.node, pid=(n.pid||"").trim();
       const base=360*(depth+1);
-      let head=docxRun(num+(pid?"  "+pid:""),{bold:true,sz:24});
-      if(n.name) head+=docxRun("  "+n.name,{sz:24});
+      let head=docxRun(num+(n.name?"  "+n.name:""),{bold:true,sz:24});
+      if(pid) head+=docxRun("  "+pid,{sz:24});
       body.push(docxPara(head,base));
       if(n.desc) body.push(docxPara(docxRun(n.desc,{sz:22}),base+240));
       if(n.ex) body.push(docxPara(docxRun("Examples: ",{bold:true,sz:22})+docxRun(n.ex,{sz:22}),base+240));
@@ -457,6 +472,12 @@ function toDocxXml(){
   }
   guidelineSections().forEach(sec=>{
     body.push(docxPara(docxRun(sec.name,{bold:true,sz:32}),0));
+    if(sec.intro){
+      const n=sec.intro, pid=(n.pid||"").trim();
+      if(pid) body.push(docxPara(docxRun(pid,{italic:true,sz:22}),240));
+      if(n.desc) body.push(docxPara(docxRun(n.desc,{sz:22}),240));
+      if(n.ex) body.push(docxPara(docxRun("Examples: ",{bold:true,sz:22})+docxRun(n.ex,{sz:22}),240));
+    }
     walk(sec.roots,"",0);
   });
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
