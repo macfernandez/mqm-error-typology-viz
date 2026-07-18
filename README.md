@@ -1,6 +1,7 @@
 # MQM-Core Error Typology — interactive explorer
 
 [![Deploy to GitHub Pages](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/pages.yml/badge.svg)](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/pages.yml)
+[![Tests](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/tests.yml/badge.svg)](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/tests.yml)
 [![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://macfernandez.github.io/mqm-error-typology-viz/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue)](pyproject.toml)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://docs.astral.sh/uv/)
@@ -22,8 +23,9 @@ The build is a three-step flow, each step a reusable function in
 1. **Download** the official MQM-Full spreadsheet from <https://themqm.org/downloads/>.
 2. **Parse** the `MQMFull Master` sheet into a JSON tree — standard library only, no
    `openpyxl`/`pandas` (an `.xlsx` is just a zip of XML).
-3. **Render** the tree into a single self-contained HTML file by injecting the JSON into
-   [`template.html`](template.html) (its only external dependency is D3, loaded from a CDN).
+3. **Render** the tree into a single self-contained HTML file by inlining the JSON and the
+   [`assets/*.js`](assets/) sources into [`template.html`](template.html) (the page's only
+   external dependency is D3, loaded from a CDN).
 
 The interactive HTML lets you:
 
@@ -33,15 +35,18 @@ The interactive HTML lets you:
 - **Tick** any node to add it to a selection, grouped by dimension and persisted across reloads
   (`localStorage`).
 - **Filter** with All / Core only / Selected.
-- **Export** the selection to CSV or JSON.
+- **Export** the selection from a single Export menu: CSV and JSON (flat dumps), or LaTeX
+  (`.tex`) and Word (`.docx`) as a nested guideline document grouped by dimension.
 
 ## Repository layout
 
 | Path | What it is |
 |---|---|
-| [`src/mqm_viz/`](src/mqm_viz/) | Reusable module: `download_spreadsheet`, `build_typology`, `render_html`. Standard library only. |
-| [`template.html`](template.html) | The interactive page, with a `__DATA__` placeholder for the injected JSON. |
+| [`src/mqm_viz/`](src/mqm_viz/) | Reusable package, one module per build step: `download.py`, `parse.py`, `render.py`. Standard library only. |
+| [`template.html`](template.html) | The page's markup + CSS, with `__DATA__` / `__SCRIPTS__` placeholders filled by the build. |
+| [`assets/`](assets/) | The page's JS: `export-formats.js` (pure formatters), `docx.js` (dependency-free `.docx` writer), `app.js` (tree + UI). Inlined into the template at build time. |
 | [`build.py`](build.py) | Thin script that runs the three steps → `dist/index.html`. Used by CI and locally. |
+| [`tests/`](tests/) | Unit tests: `exports.test.js` for the JS formatters (`node --test`), `test_mqm_viz.py` for the Python package (`unittest`). |
 | [`notebooks/`](notebooks/) | Narrative notebook that walks through the same module, step by step. |
 | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) | Builds and deploys to GitHub Pages on every push to `main`. |
 
@@ -61,6 +66,20 @@ uv run build.py --force    # re-download the spreadsheet
 
 Open `dist/index.html` in any browser. Intermediate files (spreadsheet, JSON) go to `build/`;
 both `build/` and `dist/` are git-ignored and regenerated on each run.
+
+### Run the tests
+
+Both suites are dependency-free, matching the project itself. The CSV/JSON/LaTeX/DOCX
+formatters in [`assets/`](assets/) are pure functions, so they run under Node as-is (no npm
+packages); the Python tests cover the parser (against synthetic `.xlsx` fixtures built with
+`zipfile`), the renderer and the download short-circuit, using only `unittest`:
+
+```bash
+node --test                                    # JS export formatters + docx writer
+uv run python -m unittest discover -s tests    # mqm_viz package
+```
+
+Both run in CI on every push ([`tests.yml`](.github/workflows/tests.yml)).
 
 ### Run the narrative notebook
 
