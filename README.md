@@ -45,7 +45,7 @@ The interactive HTML lets you:
 | [`template.html`](template.html) | The page's markup + CSS, with `__DATA__` / `__SCRIPTS__` placeholders filled by the build. |
 | [`assets/`](assets/) | The page's JS: `export-formats.js` (pure formatters), `docx.js` (dependency-free `.docx` writer), `app.js` (tree + UI). Inlined into the template at build time. |
 | [`build.py`](build.py) | Thin script that runs the three steps → `dist/index.html`. Used by CI and locally. |
-| [`tests/`](tests/) | Node unit tests for the export formatters (`node --test`). |
+| [`tests/`](tests/) | Unit tests: `exports.test.js` for the JS formatters (`node --test`), `test_mqm_viz.py` for the Python package (`unittest`). |
 | [`notebooks/`](notebooks/) | Narrative notebook that walks through the same module, step by step. |
 | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) | Builds and deploys to GitHub Pages on every push to `main`. |
 
@@ -66,14 +66,19 @@ uv run build.py --force    # re-download the spreadsheet
 Open `dist/index.html` in any browser. Intermediate files (spreadsheet, JSON) go to `build/`;
 both `build/` and `dist/` are git-ignored and regenerated on each run.
 
-### Run the export-format tests
+### Run the tests
 
-The CSV/JSON/LaTeX/DOCX formatters in [`assets/`](assets/) are pure functions, so they run
-under Node as-is (no npm packages):
+Both suites are dependency-free, matching the project itself. The CSV/JSON/LaTeX/DOCX
+formatters in [`assets/`](assets/) are pure functions, so they run under Node as-is (no npm
+packages); the Python tests cover the parser (against synthetic `.xlsx` fixtures built with
+`zipfile`), the renderer and the download short-circuit, using only `unittest`:
 
 ```bash
-node --test
+node --test                                    # JS export formatters + docx writer
+uv run python -m unittest discover -s tests    # mqm_viz package
 ```
+
+Both run in CI on every push ([`tests.yml`](.github/workflows/tests.yml)).
 
 ### Run the narrative notebook
 
