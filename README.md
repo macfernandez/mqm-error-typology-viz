@@ -1,6 +1,8 @@
 # MQM-Core Error Typology — interactive explorer
 
 [![Deploy to GitHub Pages](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/pages.yml/badge.svg)](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/pages.yml)
+[![Tests (branch)](https://img.shields.io/github/actions/workflow/status/macfernandez/mqm-error-typology-viz/tests.yml?branch=claude%2Fmqm-export-menu-formats-4mo4h6&label=tests%20%28branch%29)](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/tests.yml?query=branch%3Aclaude%2Fmqm-export-menu-formats-4mo4h6)
+[![Tests](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/tests.yml/badge.svg)](https://github.com/macfernandez/mqm-error-typology-viz/actions/workflows/tests.yml)
 [![Live demo](https://img.shields.io/badge/demo-live-brightgreen)](https://macfernandez.github.io/mqm-error-typology-viz/)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-blue)](pyproject.toml)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://docs.astral.sh/uv/)
