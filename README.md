@@ -22,8 +22,9 @@ The build is a three-step flow, each step a reusable function in
 1. **Download** the official MQM-Full spreadsheet from <https://themqm.org/downloads/>.
 2. **Parse** the `MQMFull Master` sheet into a JSON tree — standard library only, no
    `openpyxl`/`pandas` (an `.xlsx` is just a zip of XML).
-3. **Render** the tree into a single self-contained HTML file by injecting the JSON into
-   [`template.html`](template.html) (its only external dependency is D3, loaded from a CDN).
+3. **Render** the tree into a single self-contained HTML file by inlining the JSON and the
+   [`assets/*.js`](assets/) sources into [`template.html`](template.html) (the page's only
+   external dependency is D3, loaded from a CDN).
 
 The interactive HTML lets you:
 
@@ -33,15 +34,18 @@ The interactive HTML lets you:
 - **Tick** any node to add it to a selection, grouped by dimension and persisted across reloads
   (`localStorage`).
 - **Filter** with All / Core only / Selected.
-- **Export** the selection to CSV or JSON.
+- **Export** the selection from a single Export menu: CSV and JSON (flat dumps), or LaTeX
+  (`.tex`) and Word (`.docx`) as a nested guideline document grouped by dimension.
 
 ## Repository layout
 
 | Path | What it is |
 |---|---|
-| [`src/mqm_viz/`](src/mqm_viz/) | Reusable module: `download_spreadsheet`, `build_typology`, `render_html`. Standard library only. |
-| [`template.html`](template.html) | The interactive page, with a `__DATA__` placeholder for the injected JSON. |
+| [`src/mqm_viz/`](src/mqm_viz/) | Reusable package, one module per build step: `download.py`, `parse.py`, `render.py`. Standard library only. |
+| [`template.html`](template.html) | The page's markup + CSS, with `__DATA__` / `__SCRIPTS__` placeholders filled by the build. |
+| [`assets/`](assets/) | The page's JS: `export-formats.js` (pure formatters), `docx.js` (dependency-free `.docx` writer), `app.js` (tree + UI). Inlined into the template at build time. |
 | [`build.py`](build.py) | Thin script that runs the three steps → `dist/index.html`. Used by CI and locally. |
+| [`tests/`](tests/) | Node unit tests for the export formatters (`node --test`). |
 | [`notebooks/`](notebooks/) | Narrative notebook that walks through the same module, step by step. |
 | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) | Builds and deploys to GitHub Pages on every push to `main`. |
 
@@ -61,6 +65,15 @@ uv run build.py --force    # re-download the spreadsheet
 
 Open `dist/index.html` in any browser. Intermediate files (spreadsheet, JSON) go to `build/`;
 both `build/` and `dist/` are git-ignored and regenerated on each run.
+
+### Run the export-format tests
+
+The CSV/JSON/LaTeX/DOCX formatters in [`assets/`](assets/) are pure functions, so they run
+under Node as-is (no npm packages):
+
+```bash
+node --test
+```
 
 ### Run the narrative notebook
 
